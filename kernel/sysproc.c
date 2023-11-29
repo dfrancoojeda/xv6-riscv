@@ -5,6 +5,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "vm.h"
 
 uint64
 sys_exit(void)
@@ -100,4 +101,25 @@ sys_getppid(void)
   }
   int ppid = parent->pid;
   return ppid; 
+}
+int sys_mprotect(void)
+{
+  uint64 addr;
+  int len;
+  argaddr(0, &addr);
+  argint(1, &len);
+  if (addr < 0 || len < 0 || len <= 0)
+    return -1;
+  return mprotect((void *)addr, len);
+}
+
+int sys_munprotect(void)
+{
+  uint64 addr;
+  int len;
+  argaddr(0, &addr);
+  argint(1, &len);
+  if (addr < 0 || len < 0 || len <= 0)
+    return -1;
+  return munprotect((void *)addr, len);
 }

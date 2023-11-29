@@ -135,6 +135,9 @@ UPROGS=\
 	$U/_zombie\
 	$U/_yosoytupadre\
 	$U/_antecesor\
+	$U/_test_program\
+	$U/_test_mprotect\
+	$U/_test_munprotect\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

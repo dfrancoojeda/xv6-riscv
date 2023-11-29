@@ -437,3 +437,57 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+int mprotect(void *addr, int len)
+{
+  struct proc *p = myproc();
+  pte_t *pte;
+  uint64 a, last;
+
+  if ((uint64)addr % PGSIZE != 0 || len <= 0)
+    return -1;
+
+  a = PGROUNDDOWN((uint64)addr);
+  last = PGROUNDUP((uint64)addr + len);
+
+  acquire(&p->lock);
+  for (; a < last; a += PGSIZE)
+  {
+    if ((pte = walk(p->pagetable, a, 0)) == 0)
+    {
+      release(&p->lock);
+      return -1;
+    }
+    *pte &= ~PTE_W; // Clear write bit to make read-only
+  }
+  release(&p->lock);
+  sfence_vma(); // Flush TLB
+  return 0;
+}
+
+int munprotect(void *addr, int len)
+{
+  struct proc *p = myproc();
+  pte_t *pte;
+  uint64 a, last;
+
+  if ((uint64)addr % PGSIZE != 0 || len <= 0)
+    return -1;
+
+  a = PGROUNDDOWN((uint64)addr);
+  last = PGROUNDUP((uint64)addr + len);
+
+  acquire(&p->lock);
+  for (; a < last; a += PGSIZE)
+  {
+    if ((pte = walk(p->pagetable, a, 0)) == 0)
+    {
+      release(&p->lock);
+      return -1;
+    }
+    *pte |= PTE_W; // Set write bit to make read-write
+  }
+  release(&p->lock);
+  sfence_vma(); // Flush TLB
+  return 0;
+}
