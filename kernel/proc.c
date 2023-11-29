@@ -325,6 +325,59 @@ fork(void)
   return pid;
 }
 
+// Create a new process, copying the parent.
+int
+fork_priority(int priority)
+{
+  printf("Forking with priority %d\n", priority);
+  int i, pid;
+  struct proc *np;
+  struct proc *p = myproc();
+
+  // Allocate process.
+  if((np = allocproc()) == 0){
+    return -1;
+  }
+
+  // Copy user memory from parent to child.
+  if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
+    freeproc(np);
+    release(&np->lock);
+    return -1;
+  }
+  np->sz = p->sz;
+
+  // copy saved user registers.
+  *(np->trapframe) = *(p->trapframe);
+
+  // Cause fork to return 0 in the child.
+  np->trapframe->a0 = 0;
+
+  // increment reference counts on open file descriptors.
+  for(i = 0; i < NOFILE; i++)
+    if(p->ofile[i])
+      np->ofile[i] = filedup(p->ofile[i]);
+  np->cwd = idup(p->cwd);
+
+  safestrcpy(np->name, p->name, sizeof(p->name));
+
+  pid = np->pid;
+
+  release(&np->lock);
+
+  acquire(&wait_lock);
+  np->parent = p;
+  release(&wait_lock);
+
+  acquire(&np->lock);
+  np->priority = priority;
+  np->state = RUNNABLE;
+  release(&np->lock);
+
+  return pid;
+}
+
+
 // Pass p's abandoned children to init.
 // Caller must hold wait_lock.
 void
@@ -444,22 +497,33 @@ wait(uint64 addr)
 void
 scheduler(void)
 {
-  struct proc *p;
+  struct proc *p, *p1;
   struct cpu *c = mycpu();
   
   c->proc = 0;
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
+    struct proc *highP;
 
     for(p = proc; p < &proc[NPROC]; p++) {
+      highP = p;
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
+
+        for(p1 = proc; p1 < &proc[NPROC]; p1++){
+	        if(p1->state != RUNNABLE)
+	          continue;
+	        if(highP->priority < p1->priority)   
+	          highP = p1;
+        }
+      p = highP;
+      p->state = RUNNING;
+      c->proc = p;
+
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
+        // before jumping back to us
         swtch(&c->context, &p->context);
 
         // Process is done running for now.

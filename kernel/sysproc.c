@@ -101,3 +101,12 @@ sys_getppid(void)
   int ppid = parent->pid;
   return ppid; 
 }
+
+uint64 
+sys_fork_priority(void) {
+  int priority;
+
+  argint(0, &priority);
+
+  return fork_priority(priority);
+}
